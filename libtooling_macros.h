@@ -75,13 +75,13 @@
     /* Instantiations will have been visited with the primary template. */     \
   })
 
-#define NEVER_CANONICAL_TYPE(Class)                                            \
-  template <> inline const Class##Type *Type::getAsCanonical() const = delete; \
-  template <> inline const Class##Type *Type::castAsCanonical() const = delete;
-
 #define clEnumVal(ENUMVAL, DESC)                                               \
   llvm::cl::OptionEnumValue { #ENUMVAL, int(ENUMVAL), DESC }
 
 #define clEnumValN(ENUMVAL, FLAGNAME, DESC)                                    \
   llvm::cl::OptionEnumValue { FLAGNAME, int(ENUMVAL), DESC }
+
+#define NEVER_CANONICAL_TYPE(Class)                                            \
+  template <> inline const Class##Type *Type::getAsCanonical() const = delete; \
+  template <> inline const Class##Type *Type::castAsCanonical() const = delete;
 
