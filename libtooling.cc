@@ -1,50 +1,55 @@
 module;
 #include <clang/AST/ASTConsumer.h>
 #include <clang/AST/ASTContext.h>
-#include <clang/AST/Decl.h>
+#include <clang/AST/DeclarationName.h>
+#include <clang/AST/DeclBase.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclGroup.h>
+#include <clang/AST/Decl.h>
 #include <clang/AST/DeclTemplate.h>
-#include <clang/AST/Expr.h>
 #include <clang/AST/ExprCXX.h>
+#include <clang/AST/Expr.h>
+#include <clang/AST/NestedNameSpecifierBase.h>
+#include <clang/AST/NestedNameSpecifier.h>
 #include <clang/AST/PrettyPrinter.h>
 #include <clang/AST/RecursiveASTVisitor.h>
+#include <clang/AST/TemplateBase.h>
+#include <clang/AST/TypeBase.h>
 #include <clang/AST/Type.h>
 #include <clang/AST/TypeLoc.h>
+#include <clang/Basic/Diagnostic.h>
 #include <clang/Basic/FileEntry.h>
 #include <clang/Basic/LangOptions.h>
+#include <clang/Basic/Linkage.h>
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/SourceManager.h>
 #include <clang/Basic/Specifiers.h>
+#include <clang/Basic/TokenKinds.h>
 #include <clang/Frontend/CompilerInstance.h>
 #include <clang/Frontend/FrontendAction.h>
+#include <clang/Frontend/FrontendActions.h>
 #include <clang/Lex/Lexer.h>
 #include <clang/Lex/MacroArgs.h>
 #include <clang/Lex/MacroInfo.h>
 #include <clang/Lex/PPCallbacks.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Lex/Token.h>
+#include <clang/Serialization/ASTWriter.h>
+#include <clang/Serialization/InMemoryModuleCache.h>
 #include <clang/Tooling/CommonOptionsParser.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
+#include <llvm/ADT/DenseMapInfo.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/Casting.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/raw_ostream.h>
-#include <clang/AST/TypeBase.h>
-#include <clang/AST/TemplateBase.h>
-#include <clang/AST/DeclBase.h>
-#include <clang/Basic/TokenKinds.h>
-#include <clang/Basic/Linkage.h>
-#include <llvm/ADT/DenseMapInfo.h>
-#include <clang/AST/DeclarationName.h>
-#include <clang/AST/NestedNameSpecifier.h>
-#include <clang/AST/NestedNameSpecifierBase.h>
 
 export module libtooling;
 
-export namespace clang {
+export extern "C++" {
+namespace clang {
   using ::clang::APValue;
   using ::clang::AR_Available;
   using ::clang::AR_Deprecated;
@@ -52,14 +57,18 @@ export namespace clang {
   using ::clang::AR_Unavailable;
   using ::clang::ASTConsumer;
   using ::clang::ASTContext;
+  using ::clang::ASTDeclListAction;
   using ::clang::ASTDeserializationListener;
+  using ::clang::ASTDumpAction;
   using ::clang::ASTFrontendAction;
   using ::clang::ASTMergeAction;
   using ::clang::ASTMutationListener;
+  using ::clang::ASTPrintAction;
   using ::clang::ASTReader;
   using ::clang::ASTRecordLayout;
   using ::clang::ASTTemplateArgumentListInfo;
   using ::clang::ASTTemplateKWAndArgsInfo;
+  using ::clang::ASTViewAction;
   using ::clang::ASTWriter;
   using ::clang::AS_none;
   using ::clang::AS_private;
@@ -68,6 +77,7 @@ export namespace clang {
   using ::clang::AbstractConditionalOperator;
   using ::clang::AccessSpecDecl;
   using ::clang::AccessSpecifier;
+  using ::clang::AddFlagValue;
   using ::clang::AddrLabelExpr;
   using ::clang::AdjustedLocInfo;
   using ::clang::AdjustedType;
@@ -115,6 +125,7 @@ export namespace clang {
   using ::clang::BindingDecl;
   using ::clang::BitIntType;
   using ::clang::BitIntTypeLoc;
+  using ::clang::BitsPacker;
   using ::clang::BlockDecl;
   using ::clang::BlockExpr;
   using ::clang::BlockPointerType;
@@ -170,6 +181,7 @@ export namespace clang {
   using ::clang::CMK_Perforce;
   using ::clang::CStyleCastExpr;
   using ::clang::CUDAKernelCallExpr;
+  using ::clang::CXX20ModulesGenerator;
   using ::clang::CXXABI;
   using ::clang::CXXAddrspaceCastExpr;
   using ::clang::CXXBasePath;
@@ -223,6 +235,7 @@ export namespace clang {
   using ::clang::CXXUuidofExpr;
   using ::clang::CallExpr;
   using ::clang::CallingConv;
+  using ::clang::CanElideDeclDef;
   using ::clang::CanQual;
   using ::clang::CanQualType;
   using ::clang::CapturedDecl;
@@ -238,6 +251,7 @@ export namespace clang {
   using ::clang::CoawaitExpr;
   using ::clang::CodeCompleteConsumer;
   using ::clang::CodeCompletionHandler;
+  using ::clang::CodeGenOptions;
   using ::clang::CommentHandler;
   using ::clang::CompilerInstance;
   using ::clang::CompilerInvocation;
@@ -314,11 +328,20 @@ export namespace clang {
   using ::clang::DependentVectorTypeLoc;
   using ::clang::DesignatedInitExpr;
   using ::clang::DesignatedInitUpdateExpr;
+  using ::clang::DiagNullabilityKind;
+  using ::clang::DiagStorageAllocator;
+  using ::clang::Diagnostic;
   using ::clang::DiagnosticBuilder;
   using ::clang::DiagnosticConsumer;
+  using ::clang::DiagnosticErrorTrap;
+  using ::clang::DiagnosticStorage;
   using ::clang::DiagnosticsEngine;
   using ::clang::DirectoryEntry;
   using ::clang::DisableValidationForModuleKind;
+  using ::clang::DumpCompilerOptionsAction;
+  using ::clang::DumpModuleInfoAction;
+  using ::clang::DumpRawTokensAction;
+  using ::clang::DumpTokensAction;
   using ::clang::DynTypedNodeList;
   using ::clang::EffectConditionExpr;
   using ::clang::ElaboratedLocInfo;
@@ -335,6 +358,7 @@ export namespace clang {
   using ::clang::EnumDecl;
   using ::clang::EnumType;
   using ::clang::EnumTypeLoc;
+  using ::clang::EscapeStringForDiagnostic;
   using ::clang::EvaluatedStmt;
   using ::clang::ExplicitCastExpr;
   using ::clang::ExplicitInstantiationInfo;
@@ -364,12 +388,14 @@ export namespace clang {
   using ::clang::FileIDAndOffset;
   using ::clang::FileManager;
   using ::clang::FileScopeAsmDecl;
+  using ::clang::FixItHint;
   using ::clang::FixedPointLiteral;
   using ::clang::FixedPointValueToString;
   using ::clang::FixedSizeTemplateParameterListStorage;
   using ::clang::FloatModeKind;
   using ::clang::FloatingLiteral;
   using ::clang::FoldingSetPlaceholder;
+  using ::clang::ForwardingDiagnosticConsumer;
   using ::clang::FriendDecl;
   using ::clang::FriendTemplateDecl;
   using ::clang::FrontendAction;
@@ -399,6 +425,13 @@ export namespace clang {
   using ::clang::GVA_Internal;
   using ::clang::GVA_StrongExternal;
   using ::clang::GVA_StrongODR;
+  using ::clang::GenerateHeaderUnitAction;
+  using ::clang::GenerateInterfaceStubsAction;
+  using ::clang::GenerateModuleAction;
+  using ::clang::GenerateModuleFromModuleMapAction;
+  using ::clang::GenerateModuleInterfaceAction;
+  using ::clang::GeneratePCHAction;
+  using ::clang::GenerateReducedModuleInterfaceAction;
   using ::clang::GenericSelectionExpr;
   using ::clang::GetNullarySelector;
   using ::clang::GetUnarySelector;
@@ -407,18 +440,22 @@ export namespace clang {
   using ::clang::HLSLAttributedResourceType;
   using ::clang::HLSLAttributedResourceTypeLoc;
   using ::clang::HLSLBufferDecl;
+  using ::clang::HLSLFrontendAction;
   using ::clang::HLSLInlineSpirvType;
   using ::clang::HLSLInlineSpirvTypeLoc;
   using ::clang::HLSLInlineSpirvTypeLocInfo;
   using ::clang::HLSLOutArgExpr;
   using ::clang::HLSLRootSignatureDecl;
   using ::clang::HeaderSearch;
+  using ::clang::HeaderSearchOptions;
   using ::clang::ICIS_CopyInit;
   using ::clang::ICIS_ListInit;
   using ::clang::ICIS_NoInit;
   using ::clang::IdentifierInfo;
+  using ::clang::IdentifierResolver;
   using ::clang::IdentifierTable;
   using ::clang::IfStatementKind;
+  using ::clang::IgnoringDiagConsumer;
   using ::clang::ImaginaryLiteral;
   using ::clang::ImplicitAllocationParameters;
   using ::clang::ImplicitCastExpr;
@@ -430,12 +467,14 @@ export namespace clang {
   using ::clang::ImportDecl;
   using ::clang::InBeforeInTUCacheEntry;
   using ::clang::InClassInitStyle;
+  using ::clang::InMemoryModuleCache;
   using ::clang::IncompleteArrayType;
   using ::clang::IncompleteArrayTypeLoc;
   using ::clang::IndirectFieldDecl;
   using ::clang::InheritedConstructor;
   using ::clang::InheritingConcreteTypeLoc;
   using ::clang::InitListExpr;
+  using ::clang::InitOnlyAction;
   using ::clang::InjectedClassNameType;
   using ::clang::InjectedClassNameTypeLoc;
   using ::clang::IntegerLiteral;
@@ -460,6 +499,7 @@ export namespace clang {
   using ::clang::Linkage;
   using ::clang::LinkageSpecDecl;
   using ::clang::LinkageSpecLanguageIDs;
+  using ::clang::LookupBlockOffsets;
   using ::clang::MSGuidDecl;
   using ::clang::MSGuidDeclParts;
   using ::clang::MSInheritanceModel;
@@ -472,6 +512,7 @@ export namespace clang {
   using ::clang::MU_Undef;
   using ::clang::MacroArgs;
   using ::clang::MacroDefinition;
+  using ::clang::MacroDefinitionRecord;
   using ::clang::MacroDirective;
   using ::clang::MacroInfo;
   using ::clang::MacroQualifiedLocInfo;
@@ -494,6 +535,8 @@ export namespace clang {
   using ::clang::Module;
   using ::clang::ModuleBuildStack;
   using ::clang::ModuleCache;
+  using ::clang::ModuleFileExtension;
+  using ::clang::ModuleFileExtensionWriter;
   using ::clang::ModuleMacro;
   using ::clang::MultiVersionKind;
   using ::clang::NOUR_Constant;
@@ -563,6 +606,7 @@ export namespace clang {
   using ::clang::OptionalFileEntryRef;
   using ::clang::OutlinedFunctionDecl;
   using ::clang::OverloadExpr;
+  using ::clang::PCHGenerator;
   using ::clang::PPCallbacks;
   using ::clang::PPChainedCallbacks;
   using ::clang::PPConditionalInfo;
@@ -605,6 +649,7 @@ export namespace clang {
   using ::clang::PredefinedSugarType;
   using ::clang::PredefinedSugarTypeLoc;
   using ::clang::PredefinedSugarTypeLocInfo;
+  using ::clang::PreprocessOnlyAction;
   using ::clang::PreprocessingRecord;
   using ::clang::Preprocessor;
   using ::clang::PreprocessorFrontendAction;
@@ -612,9 +657,13 @@ export namespace clang {
   using ::clang::PreprocessorOptions;
   using ::clang::PresumedLoc;
   using ::clang::PrettyStackTraceDecl;
+  using ::clang::PrintDependencyDirectivesSourceMinimizerAction;
+  using ::clang::PrintPreambleAction;
+  using ::clang::PrintPreprocessedAction;
   using ::clang::PrinterHelper;
   using ::clang::PrintingCallbacks;
   using ::clang::PrintingPolicy;
+  using ::clang::ProcessWarningOptions;
   using ::clang::ProfileList;
   using ::clang::PseudoDestructorTypeStorage;
   using ::clang::PseudoObjectExpr;
@@ -629,6 +678,7 @@ export namespace clang {
   using ::clang::RQ_RValue;
   using ::clang::RValueReferenceType;
   using ::clang::RValueReferenceTypeLoc;
+  using ::clang::ReadPCHAndPreprocessAction;
   using ::clang::RecordArgPassingKind;
   using ::clang::RecordDecl;
   using ::clang::RecordType;
@@ -636,6 +686,7 @@ export namespace clang {
   using ::clang::RecoveryExpr;
   using ::clang::RecursiveASTVisitor;
   using ::clang::RedeclarableTemplateDecl;
+  using ::clang::ReducedBMIGenerator;
   using ::clang::RefQualifierKind;
   using ::clang::ReferenceType;
   using ::clang::ReferenceTypeLoc;
@@ -673,7 +724,10 @@ export namespace clang {
   using ::clang::StmtExpr;
   using ::clang::StorageClass;
   using ::clang::StorageDuration;
+  using ::clang::StoredDeclsList;
   using ::clang::StoredDeclsMap;
+  using ::clang::StoredDiagnostic;
+  using ::clang::StreamingDiagnostic;
   using ::clang::StringLiteral;
   using ::clang::StringLiteralKind;
   using ::clang::SubobjectAdjustment;
@@ -687,6 +741,8 @@ export namespace clang {
   using ::clang::SubstTemplateTypeParmPackTypeLoc;
   using ::clang::SubstTemplateTypeParmType;
   using ::clang::SubstTemplateTypeParmTypeLoc;
+  using ::clang::SwitchCase;
+  using ::clang::SyntaxOnlyAction;
   using ::clang::TSCS__Thread_local;
   using ::clang::TSCS___thread;
   using ::clang::TSCS_thread_local;
@@ -784,6 +840,7 @@ export namespace clang {
   using ::clang::TemplateArgumentLoc;
   using ::clang::TemplateArgumentLocInfo;
   using ::clang::TemplateDecl;
+  using ::clang::TemplateDiffTypes;
   using ::clang::TemplateNameLocInfo;
   using ::clang::TemplateParamObjectDecl;
   using ::clang::TemplateParameter;
@@ -797,7 +854,9 @@ export namespace clang {
   using ::clang::TemplateTypeParmDecl;
   using ::clang::TemplateTypeParmType;
   using ::clang::TemplateTypeParmTypeLoc;
+  using ::clang::TemplightDumpAction;
   using ::clang::ThreadStorageClassSpecifier;
+  using ::clang::ToggleHighlight;
   using ::clang::Token;
   using ::clang::TokenValue;
   using ::clang::TopLevelStmtDecl;
@@ -880,7 +939,9 @@ export namespace clang {
   using ::clang::VectorType;
   using ::clang::VectorTypeLoc;
   using ::clang::VectorTypeLocInfo;
+  using ::clang::VerifyPCHAction;
   using ::clang::VisibilityMacroDirective;
+  using ::clang::VisibleLookupBlockOffsets;
   using ::clang::WarnUnusedResultAttr;
   using ::clang::WrapperFrontendAction;
   using ::clang::WrittenBuiltinSpecs;
@@ -957,6 +1018,7 @@ export namespace clang {
   namespace serialization {
     using ::clang::serialization::AbstractTypeReader;
     using ::clang::serialization::AbstractTypeWriter;
+    using ::clang::serialization::DeclUpdateKind;
     using ::clang::serialization::ModuleFile;
   }
   namespace tok {
@@ -1539,7 +1601,7 @@ export namespace clang {
     using ::clang::tooling::transferCompileCommand;
   }
 }
-export namespace llvm {
+namespace llvm {
   using ::llvm::APFixedPoint;
   using ::llvm::APInt;
   using ::llvm::ArrayRef;
@@ -1764,6 +1826,4 @@ export namespace llvm {
     using ::llvm::vfs::FileSystem;
   }
 }
-export namespace std {
-  using ::std::swap;
 }
